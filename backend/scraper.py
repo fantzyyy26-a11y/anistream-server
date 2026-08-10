@@ -54,7 +54,11 @@ def get_anilist_fallback(status: str = "RELEASING", limit: int = 24) -> List[Dic
     }
     """
     try:
-        r = requests.post(ANILIST_API_URL, json={'query': query, 'variables': {'status': status, 'perPage': limit}}, headers=headers, timeout=4.0)
+        req_body = {'query': query, 'variables': {'perPage': limit}}
+        if status:
+            req_body['variables']['status'] = status
+            
+        r = requests.post(ANILIST_API_URL, json=req_body, headers=headers, timeout=8.0)
         if r.status_code == 200:
             items = r.json().get('data', {}).get('Page', {}).get('media', [])
             res = []
@@ -83,63 +87,90 @@ def get_anilist_fallback(status: str = "RELEASING", limit: int = 24) -> List[Dic
                     "status": "COMPLETED" if status == "FINISHED" else "RELEASED",
                     "genres": item.get('genres', ["Ongoing", "Sub Indo"])
                 })
-            return res
+            if res:
+                return res
     except Exception as e:
         logger.error(f"AniList fallback error: {e}")
+
+    # Fallback to local OTAKU_FULL_DB if AniList API is unreachable
+    if OTAKU_FULL_DB:
+        res = []
+        for item in OTAKU_FULL_DB[:limit]:
+            u = item.get("otaku_url", "")
+            slug = item.get("slug", "anime")
+            res.append({
+                "id": item.get("id", f"otaku-{slug}"),
+                "mal_id": item.get("id", f"otaku-{slug}"),
+                "title": item.get("title", "Anime"),
+                "otaku_url": u,
+                "image_url": "https://otakudesu.blog/wp-content/uploads/2020/08/Otakudesu.png",
+                "banner_url": "https://otakudesu.blog/wp-content/uploads/2020/08/Otakudesu.png",
+                "score": 8.8,
+                "latest_episode": "Episode 1",
+                "episode_number": 1,
+                "episodes": 12,
+                "release_day": "Hari Ini",
+                "release_date": "ONGOING",
+                "genres": ["Anime", "Sub Indo"]
+            })
+        return res
     return []
 
 def get_otakudesu_ongoing_anime() -> List[Dict[str, Any]]:
     """Scrape 100% anime ongoing + jadwal rilis realtime langsung dari beranda Otakudesu."""
+    results = []
     try:
         r = requests.get('https://otakudesu.blog/ongoing-anime/', headers=headers, timeout=5.0)
         if r.status_code != 200:
             r = requests.get('https://otakudesu.blog/', headers=headers, timeout=5.0)
             
-        soup = BeautifulSoup(r.text, 'html.parser')
-        results = []
-        
-        for div in soup.select('div.detpost'):
-            title_el = div.select_one('h2.jdlflm')
-            img_el = div.select_one('div.thumb img')
-            ep_el = div.select_one('div.epz')
-            day_el = div.select_one('div.epztipe')
-            date_el = div.select_one('div.newnime')
-            a_el = div.select_one('div.thumb a')
-            
-            if title_el and a_el:
-                title = title_el.text.strip()
-                url = a_el.get('href', '')
-                img = img_el.get('src', '') if img_el else ''
-                ep_text = ep_el.text.strip() if ep_el else 'Episode 1'
-                day_text = day_el.text.strip() if day_el else 'Senin'
-                date_text = date_el.text.strip() if date_el else ''
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            for div in soup.select('div.detpost'):
+                title_el = div.select_one('h2.jdlflm')
+                img_el = div.select_one('div.thumb img')
+                ep_el = div.select_one('div.epz')
+                day_el = div.select_one('div.epztipe')
+                date_el = div.select_one('div.newnime')
+                a_el = div.select_one('div.thumb a')
                 
-                ep_match = re.search(r'(\d+)', ep_text)
-                ep_num = int(ep_match.group(1)) if ep_match else 1
-                
-                slug = url.strip('/').split('/')[-1]
-                anim_id = f"otaku-{slug}"
-                
-                results.append({
-                    "id": anim_id,
-                    "mal_id": anim_id,
-                    "title": title,
-                    "otaku_url": url,
-                    "image_url": img,
-                    "banner_url": img,
-                    "score": 8.8,
-                    "latest_episode": ep_text,
-                    "episode_number": ep_num,
-                    "episodes": ep_num,
-                    "release_day": day_text,
-                    "release_date": date_text,
-                    "genres": ["Ongoing", "Sub Indo"]
-                })
-        if results:
-            return results
+                if title_el and a_el:
+                    title = title_el.text.strip()
+                    url = a_el.get('href', '')
+                    img = img_el.get('src', '') if img_el else ''
+                    ep_text = ep_el.text.strip() if ep_el else 'Episode 1'
+                    day_text = day_el.text.strip() if day_el else 'Senin'
+                    date_text = date_el.text.strip() if date_el else ''
+                    
+                    ep_match = re.search(r'(\d+)', ep_text)
+                    ep_num = int(ep_match.group(1)) if ep_match else 1
+                    
+                    slug = url.strip('/').split('/')[-1]
+                    anim_id = f"otaku-{slug}"
+                    
+                    results.append({
+                        "id": anim_id,
+                        "mal_id": anim_id,
+                        "title": title,
+                        "otaku_url": url,
+                        "image_url": img,
+                        "banner_url": img,
+                        "score": 8.8,
+                        "latest_episode": ep_text,
+                        "episode_number": ep_num,
+                        "episodes": ep_num,
+                        "release_day": day_text,
+                        "release_date": date_text,
+                        "genres": ["Ongoing", "Sub Indo"]
+                    })
     except Exception as e:
         logger.error(f"Error scraping Otakudesu ongoing anime: {e}")
-    return get_anilist_fallback("RELEASING")
+
+    if not results:
+        results = get_anilist_fallback("RELEASING")
+    if not results:
+        results = get_anilist_fallback("FINISHED")
+    return results
 
 def get_otakudesu_complete_anime() -> List[Dict[str, Any]]:
     """Scrape anime tamat/terpopuler 100% langsung dari https://otakudesu.blog/complete-anime/."""
