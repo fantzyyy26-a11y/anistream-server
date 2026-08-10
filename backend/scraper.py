@@ -625,7 +625,8 @@ def get_anime_details(anime_id: Any) -> Optional[Dict[str, Any]]:
             return direct_res
 
     # 5. Universal Cloud Fallback (Ensures 100% success on Cloud servers like Render when Otakudesu blocks IP)
-    clean_slug = anim_str.replace('otaku-', '').strip('/')
+    raw_slug = anim_str.strip('/').split('/')[-1]
+    clean_slug = raw_slug.replace('otaku-', '').strip('/')
     title_pretty = clean_slug.replace('-', ' ').title()
     ep_count = 12
     episodes = []

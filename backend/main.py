@@ -195,13 +195,14 @@ async def get_embed_proxy(anime_id: str, ep_number: int, server: str = Query("1"
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
     <style>
         html, body {{ margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }}
         iframe {{ width: 100%; height: 100%; border: 0; }}
     </style>
 </head>
 <body>
-    <iframe src="{target_url}" allowfullscreen allow="autoplay; encrypted-media"></iframe>
+    <iframe src="{target_url}" allowfullscreen allow="autoplay; encrypted-media" referrerpolicy="no-referrer"></iframe>
 </body>
 </html>
 """
