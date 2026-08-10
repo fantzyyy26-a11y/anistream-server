@@ -33,6 +33,61 @@ def load_otaku_full_db() -> List[Dict[str, Any]]:
 
 OTAKU_FULL_DB = load_otaku_full_db()
 
+def get_anilist_fallback(status: str = "RELEASING", limit: int = 24) -> List[Dict[str, Any]]:
+    """Fallback ke AniList GraphQL API jika Otakudesu terdeteksi memblokir IP server cloud Render."""
+    query = """
+    query ($status: MediaStatus, $perPage: Int) {
+      Page(page: 1, perPage: $perPage) {
+        media(status: $status, type: ANIME, sort: POPULARITY_DESC) {
+          id
+          title {
+            romaji
+            english
+          }
+          coverImage {
+            large
+          }
+          meanScore
+          genres
+        }
+      }
+    }
+    """
+    try:
+        r = requests.post(ANILIST_API_URL, json={'query': query, 'variables': {'status': status, 'perPage': limit}}, headers=headers, timeout=4.0)
+        if r.status_code == 200:
+            items = r.json().get('data', {}).get('Page', {}).get('media', [])
+            res = []
+            for item in items:
+                t_obj = item.get('title', {})
+                title = t_obj.get('romaji') or t_obj.get('english') or 'Anime'
+                clean_title = re.sub(r'[^a-zA-Z0-9]', '-', title.lower()).strip('-')
+                slug = re.sub(r'-+', '-', clean_title)
+                anim_id = f"otaku-{slug}"
+                img = item.get('coverImage', {}).get('large', '')
+                score_raw = item.get('meanScore')
+                score = round(score_raw / 10, 1) if score_raw else 8.5
+                res.append({
+                    "id": anim_id,
+                    "mal_id": anim_id,
+                    "title": title,
+                    "otaku_url": f"https://otakudesu.blog/anime/{slug}/",
+                    "image_url": img,
+                    "banner_url": img,
+                    "score": score,
+                    "latest_episode": "Episode 1",
+                    "episode_number": 1,
+                    "episodes": 12,
+                    "release_day": "Hari Ini",
+                    "release_date": "ONGOING",
+                    "status": "COMPLETED" if status == "FINISHED" else "RELEASED",
+                    "genres": item.get('genres', ["Ongoing", "Sub Indo"])
+                })
+            return res
+    except Exception as e:
+        logger.error(f"AniList fallback error: {e}")
+    return []
+
 def get_otakudesu_ongoing_anime() -> List[Dict[str, Any]]:
     """Scrape 100% anime ongoing + jadwal rilis realtime langsung dari beranda Otakudesu."""
     try:
@@ -80,47 +135,48 @@ def get_otakudesu_ongoing_anime() -> List[Dict[str, Any]]:
                     "release_date": date_text,
                     "genres": ["Ongoing", "Sub Indo"]
                 })
-        return results
+        if results:
+            return results
     except Exception as e:
         logger.error(f"Error scraping Otakudesu ongoing anime: {e}")
-    return []
+    return get_anilist_fallback("RELEASING")
 
 def get_otakudesu_complete_anime() -> List[Dict[str, Any]]:
     """Scrape anime tamat/terpopuler 100% langsung dari https://otakudesu.blog/complete-anime/."""
     try:
         r = requests.get('https://otakudesu.blog/complete-anime/', headers=headers, timeout=5.0)
-        if r.status_code != 200:
-            return []
-        soup = BeautifulSoup(r.text, 'html.parser')
-        results = []
-        for div in soup.select('div.detpost'):
-            title_el = div.select_one('h2.jdlflm')
-            img_el = div.select_one('div.thumb img')
-            ep_el = div.select_one('div.epz')
-            a_el = div.select_one('div.thumb a')
-            if title_el and a_el:
-                title = title_el.text.strip()
-                url = a_el.get('href', '')
-                img = img_el.get('src', '') if img_el else ''
-                ep_text = ep_el.text.strip() if ep_el else 'TAMAT'
-                slug = url.strip('/').split('/')[-1]
-                anim_id = f"otaku-{slug}"
-                results.append({
-                    "id": anim_id,
-                    "mal_id": anim_id,
-                    "title": title,
-                    "otaku_url": url,
-                    "image_url": img,
-                    "banner_url": img,
-                    "score": 8.8,
-                    "latest_episode": ep_text,
-                    "status": "COMPLETED",
-                    "genres": ["Completed", "Sub Indo"]
-                })
-        return results
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, 'html.parser')
+            results = []
+            for div in soup.select('div.detpost'):
+                title_el = div.select_one('h2.jdlflm')
+                img_el = div.select_one('div.thumb img')
+                ep_el = div.select_one('div.epz')
+                a_el = div.select_one('div.thumb a')
+                if title_el and a_el:
+                    title = title_el.text.strip()
+                    url = a_el.get('href', '')
+                    img = img_el.get('src', '') if img_el else ''
+                    ep_text = ep_el.text.strip() if ep_el else 'TAMAT'
+                    slug = url.strip('/').split('/')[-1]
+                    anim_id = f"otaku-{slug}"
+                    results.append({
+                        "id": anim_id,
+                        "mal_id": anim_id,
+                        "title": title,
+                        "otaku_url": url,
+                        "image_url": img,
+                        "banner_url": img,
+                        "score": 8.8,
+                        "latest_episode": ep_text,
+                        "status": "COMPLETED",
+                        "genres": ["Completed", "Sub Indo"]
+                    })
+            if results:
+                return results
     except Exception as e:
         logger.error(f"Error scraping Otakudesu complete anime: {e}")
-    return []
+    return get_anilist_fallback("FINISHED")
 
 def get_otakudesu_schedule() -> Dict[str, List[Dict[str, Any]]]:
     """Scrape jadwal rilis harian (Senin - Minggu) 100% langsung dari https://otakudesu.blog/jadwal-rilis/."""
