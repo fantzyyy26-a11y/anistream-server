@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="theme-color" content="#0B0E17">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AniStream Hub - Nonton Anime Android</title>
+    
+    <!-- Google Fonts & Icons -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- HLS.js Player Engine -->
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    
+    <!-- App Stylesheet -->
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="manifest" href="manifest.json">
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch(err => console.log('SW reg error:', err));
+            });
+        }
+    </script>
+</head>
+<body>
+    <div id="app-container">
+        <!-- Top App Bar / Header -->
+        <header class="app-header">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i class="fa-solid fa-play"></i>
+                </div>
+                <span class="brand-name">Ani<span>Stream</span></span>
+            </div>
+            
+            <div class="header-actions">
+                <button id="search-toggle-btn" class="icon-btn" title="Cari Anime">
+                    <i class="fa-solid fa-magnifying-glass"></i>
+                </button>
+                <button id="auth-btn" class="auth-pill-btn">
+                    <i class="fa-solid fa-user"></i> <span id="auth-user-label">Masuk</span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Search Bar Drawer / Overlay -->
+        <div id="search-bar-container" class="search-bar-container hidden">
+            <div class="search-input-wrapper">
+                <i class="fa-solid fa-magnifying-glass search-icon"></i>
+                <input type="text" id="search-input" placeholder="Cari judul anime (misal: Naruto, One Piece)..." autocomplete="off">
+                <button id="search-clear-btn" class="clear-btn hidden"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+        </div>
+
+        <!-- Main Scrollable Content -->
+        <main id="main-content" class="main-content">
+            <!-- Hero Carousel Banner -->
+            <section class="hero-section">
+                <div id="hero-carousel" class="hero-carousel">
+                    <div class="hero-skeleton skeleton"></div>
+                </div>
+            </section>
+
+            <!-- Genre Filter Chips -->
+            <section class="genre-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-tags"></i> Kategori Genre</h2>
+                </div>
+                <div class="genre-chips-wrapper" id="genre-chips">
+                    <button class="genre-chip active" data-genre="all">Semua</button>
+                    <button class="genre-chip" data-genre="Action">Action</button>
+                    <button class="genre-chip" data-genre="Adventure">Adventure</button>
+                    <button class="genre-chip" data-genre="Fantasy">Fantasy</button>
+                    <button class="genre-chip" data-genre="Romance">Romance</button>
+                    <button class="genre-chip" data-genre="Comedy">Comedy</button>
+                    <button class="genre-chip" data-genre="Sci-Fi">Sci-Fi</button>
+                    <button class="genre-chip" data-genre="Slice of Life">Slice of Life</button>
+                </div>
+            </section>
+
+            <!-- Section Realtime Ongoing Update Schedule (Otakudesu) -->
+            <section class="anime-section ongoing-otaku-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-calendar-days text-primary"></i> Update Episode Realtime</h2>
+                    <span class="badge-pill bg-live"><i class="fa-solid fa-circle-dot text-danger animate-pulse"></i> LIVE REALTIME</span>
+                </div>
+                <!-- Day Filter Chips -->
+                <div class="day-chips-wrapper" id="day-chips">
+                    <button class="day-chip active" data-day="all">🔥 Update Terbaru</button>
+                    <button class="day-chip" data-day="Senin">★ Senin</button>
+                    <button class="day-chip" data-day="Selasa">★ Selasa</button>
+                    <button class="day-chip" data-day="Rabu">★ Rabu</button>
+                    <button class="day-chip" data-day="Kamis">★ Kamis</button>
+                    <button class="day-chip" data-day="Jumat">★ Jumat</button>
+                    <button class="day-chip" data-day="Sabtu">★ Sabtu</button>
+                    <button class="day-chip" data-day="Minggu">★ Minggu</button>
+                </div>
+                <div id="otakudesu-ongoing-grid" class="anime-grid"></div>
+            </section>
+
+            <!-- Section 1: Anime Ongoing / Seasonal -->
+            <section class="anime-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-bolt text-warning"></i> Catalog Ongoing</h2>
+                    <span class="badge-pill">UPDATE BARU</span>
+                </div>
+                <div id="seasonal-grid" class="anime-grid"></div>
+            </section>
+
+            <!-- Section 2: Trending & Terpopuler -->
+            <section class="anime-section">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-fire text-danger"></i> Terpopuler (Popular)</h2>
+                </div>
+                <div id="trending-grid" class="anime-grid"></div>
+            </section>
+
+            <!-- Section 3: Search Results Grid (Tampil jika pencarian aktif) -->
+            <section id="search-results-section" class="anime-section hidden">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-list-check"></i> Hasil Pencarian: <span id="search-query-label"></span></h2>
+                </div>
+                <div id="search-grid" class="anime-grid"></div>
+            </section>
+
+            <!-- Section 4: Watchlist / Favorit Saya -->
+            <section id="watchlist-section" class="anime-section hidden">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-bookmark text-primary"></i> Watchlist / Favorit Saya</h2>
+                </div>
+                <div id="watchlist-grid" class="anime-grid">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-heart-crack"></i>
+                        <p>Belum ada anime di daftar favorit Anda.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 5: History / Riwayat Nonton -->
+            <section id="history-section" class="anime-section hidden">
+                <div class="section-header">
+                    <h2><i class="fa-solid fa-clock-rotate-left"></i> Riwayat Nonton</h2>
+                </div>
+                <div id="history-grid" class="anime-grid">
+                    <div class="empty-state">
+                        <i class="fa-solid fa-film"></i>
+                        <p>Belum ada riwayat anime yang Anda tonton.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section 6: About / Creator Pembuat -->
+            <section id="about-section" class="anime-section hidden">
+                <div class="about-card-wrapper">
+                    <div class="creator-badge"><i class="fa-solid fa-crown text-warning"></i> VERIFIED CREATOR</div>
+                    <div class="creator-avatar">
+                        <i class="fa-solid fa-user-astronaut"></i>
+                    </div>
+                    <h2 class="creator-name">AniStream Hub Official</h2>
+                    <p class="creator-bio">Platform Streaming Anime Next-Gen dengan Auto-Sync Realtime, High-Speed HD Video Player, & Mode Tanpa Iklan.</p>
+                    
+                    <div class="creator-stats-grid">
+                        <div class="c-stat-box">
+                            <span class="stat-num">1.854+</span>
+                            <span class="stat-label">Anime Database</span>
+                        </div>
+                        <div class="c-stat-box">
+                            <span class="stat-num">1080p</span>
+                            <span class="stat-label">Stream Quality</span>
+                        </div>
+                        <div class="c-stat-box">
+                            <span class="stat-num">v2.4</span>
+                            <span class="stat-label">Build Version</span>
+                        </div>
+                    </div>
+
+                    <div class="creator-features-list">
+                        <div class="c-feature-item"><i class="fa-solid fa-circle-check text-primary"></i> Auto Realtime Synchronized Server</div>
+                        <div class="c-feature-item"><i class="fa-solid fa-circle-check text-primary"></i> Mode Fullscreen Android APK Support</div>
+                        <div class="c-feature-item"><i class="fa-solid fa-circle-check text-primary"></i> Multi-Server HD Player & Fast Stream</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Detail Modal / View Drawer -->
+        <div id="detail-modal" class="detail-modal hidden">
+            <div class="detail-content">
+                <button id="close-detail-btn" class="close-modal-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                
+                <div id="detail-banner" class="detail-banner">
+                    <div class="banner-gradient"></div>
+                </div>
+                
+                <div class="detail-header-info">
+                    <img id="detail-poster" src="" alt="Poster" class="detail-poster">
+                    <div class="detail-title-block">
+                        <h1 id="detail-title">Judul Anime</h1>
+                        <p id="detail-japanese" class="detail-japanese">Japanese Title</p>
+                        <div class="detail-meta">
+                            <span id="detail-score" class="score-badge"><i class="fa-solid fa-star"></i> 8.5</span>
+                            <span id="detail-ep-count" class="meta-pill">24 EP</span>
+                            <span id="detail-status" class="meta-pill">RELEASED</span>
+                            <span id="detail-year" class="meta-pill">2026</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="detail-actions">
+                    <button id="start-watch-btn" class="btn-primary"><i class="fa-solid fa-play"></i> Tonton Episode 1</button>
+                    <button id="toggle-watchlist-btn" class="btn-secondary"><i class="fa-regular fa-bookmark"></i> Favorit</button>
+                </div>
+
+                <div id="detail-genres" class="detail-genres"></div>
+
+                <div class="detail-synopsis">
+                    <h3>Sinopsis</h3>
+                    <p id="detail-synopsis-text">Deskripsi anime...</p>
+                </div>
+
+                <!-- Episodes Selector Grid -->
+                <div class="episodes-section">
+                    <h3>Daftar Episode (<span id="episodes-total-count">0</span>)</h3>
+                    <div id="episodes-grid" class="episodes-grid"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Video Player Screen / Overlay -->
+        <div id="player-modal" class="player-modal hidden">
+            <div class="player-top-bar">
+                <button id="close-player-btn" class="back-btn"><i class="fa-solid fa-arrow-left"></i></button>
+                <div class="player-title-info">
+                    <h3 id="player-anime-title">Nama Anime</h3>
+                    <span id="player-ep-title" class="ep-subtitle">Episode 1</span>
+                </div>
+            </div>
+
+            <div id="unreleased-notice" class="unreleased-notice hidden">
+                <i class="fa-solid fa-circle-exclamation"></i>
+                <span>Status Anime: <strong id="unreleased-status-text">Belum Tayang</strong>. Episode ini belum dirilis.</span>
+            </div>
+
+            <!-- Video Player Frame Wrapper -->
+            <div class="video-container">
+                <!-- Iframe Embed Container -->
+                <iframe id="video-iframe" class="video-frame" allowfullscreen frameborder="0" src="about:blank"></iframe>
+                
+                <!-- HLS Video Player Native -->
+                <video id="hls-video" class="video-frame hidden" controls playsinline></video>
+                
+                <!-- Player Loader Spinner -->
+                <div id="player-loader" class="player-loader hidden">
+                    <div class="spinner"></div>
+                    <p>Memuat video stream server...</p>
+                </div>
+            </div>
+
+            <!-- Player Controls & Server Selector Bar -->
+            <div class="player-toolbar">
+                <div class="server-selector-group">
+                    <label><i class="fa-solid fa-server"></i> Server Stream:</label>
+                    <select id="server-select" class="server-select"></select>
+                </div>
+
+                <div class="player-nav-btns">
+                    <button id="prev-ep-btn" class="btn-sm"><i class="fa-solid fa-backward"></i> Ep Sebelum</button>
+                    <button id="next-ep-btn" class="btn-sm btn-primary">Ep Selanjutnya <i class="fa-solid fa-forward"></i></button>
+                </div>
+            </div>
+
+            <!-- Quick Episode Selector Grid inside Player -->
+            <div class="player-episodes-section">
+                <h4>Pilih Episode Lain:</h4>
+                <div id="player-episodes-grid" class="episodes-grid mini"></div>
+            </div>
+        </div>
+
+        <!-- Auth Login & Register Modal Overlay -->
+        <div id="auth-modal" class="auth-modal hidden">
+            <div class="auth-card-box">
+                <button id="close-auth-btn" class="close-modal-btn"><i class="fa-solid fa-xmark"></i></button>
+                
+                <div class="auth-header">
+                    <div class="auth-logo"><i class="fa-solid fa-play"></i></div>
+                    <h2 id="auth-title">Masuk ke AniStream</h2>
+                    <p id="auth-subtitle">Masuk atau daftar untuk menonton streaming anime & simpan favorit secara otomatis.</p>
+                </div>
+
+                <!-- Auth Tabs -->
+                <div class="auth-tab-group">
+                    <button id="tab-login-btn" class="auth-tab active">Masuk Akun</button>
+                    <button id="tab-register-btn" class="auth-tab">Daftar Baru</button>
+                </div>
+
+                <!-- Form Alert Notice -->
+                <div id="auth-alert" class="auth-alert hidden"></div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="auth-form">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-user"></i> Username / Email</label>
+                        <input type="text" id="login-username" placeholder="Masukkan username atau email..." required>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock"></i> Password</label>
+                        <input type="password" id="login-password" placeholder="Masukkan password..." required>
+                        <a href="#" id="forgot-pwd-link" style="font-size: 12px; color: var(--accent-color); display: block; text-align: right; margin-top: 6px; text-decoration: none; font-weight: 600;"><i class="fa-solid fa-key"></i> Lupa Password?</a>
+                    </div>
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-right-to-bracket"></i> Masuk Sekarang</button>
+                </form>
+
+                <!-- Forgot Password Step 1 Form -->
+                <form id="forgot-form" class="auth-form hidden">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-envelope"></i> Email Terdaftar</label>
+                        <input type="email" id="forgot-email" placeholder="Masukkan email akun Anda..." required>
+                    </div>
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-paper-plane"></i> Kirim Kode OTP Reset Password</button>
+                    <button type="button" id="back-to-login-btn-1" class="btn-secondary auth-submit-btn" style="background: transparent; border: 1px solid var(--border-glass);"><i class="fa-solid fa-arrow-left"></i> Batal / Kembali ke Login</button>
+                </form>
+
+                <!-- Reset Password Step 2 Form -->
+                <form id="reset-pwd-form" class="auth-form hidden">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-key"></i> Kode OTP Reset Password (6 Angka)</label>
+                        <input type="text" id="reset-otp-input" placeholder="Masukkan 6 angka OTP..." required maxlength="6" style="letter-spacing: 4px; font-weight: 800; text-align: center; font-size: 18px;">
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock"></i> Password Baru</label>
+                        <input type="password" id="reset-new-password" placeholder="Masukkan password baru..." required minlength="4">
+                    </div>
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-floppy-disk"></i> Simpan & Reset Password</button>
+                    <button type="button" id="back-to-login-btn-2" class="btn-secondary auth-submit-btn" style="background: transparent; border: 1px solid var(--border-glass);"><i class="fa-solid fa-arrow-left"></i> Batal / Kembali ke Login</button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" class="auth-form hidden">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-user"></i> Username Baru</label>
+                        <input type="text" id="reg-username" placeholder="Buat username (contoh: otaku123)..." required minlength="3">
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-envelope"></i> Alamat Email</label>
+                        <input type="email" id="reg-email" placeholder="Masukkan alamat email aktif..." required>
+                    </div>
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock"></i> Buat Password</label>
+                        <input type="password" id="reg-password" placeholder="Minimal 4 karakter..." required minlength="4">
+                    </div>
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-paper-plane"></i> Kirim Kode OTP Verifikasi</button>
+                </form>
+
+                <!-- OTP 6-Digit Verification Form -->
+                <form id="otp-form" class="auth-form hidden">
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-key"></i> Kode OTP Verifikasi Email (6 Angka)</label>
+                        <input type="text" id="otp-input" placeholder="Masukkan 6 angka OTP..." required maxlength="6" style="letter-spacing: 4px; font-weight: 800; text-align: center; font-size: 18px;">
+                    </div>
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-circle-check"></i> Verifikasi Kode & Aktifkan</button>
+                    <button type="button" id="back-to-reg-btn" class="btn-secondary auth-submit-btn" style="background: transparent; border: 1px solid var(--border-glass);"><i class="fa-solid fa-arrow-left"></i> Kembali ke Form Pendaftaran</button>
+                </form>
+            </div>
+        </div>
+
+        <!-- User Profile & Password Change Modal -->
+        <div id="profile-modal" class="auth-modal hidden">
+            <div class="auth-card-box profile-card-box">
+                <button id="close-profile-btn" class="auth-modal-close"><i class="fa-solid fa-xmark"></i></button>
+                
+                <div class="profile-header-info">
+                    <div class="profile-avatar-circle">
+                        <i class="fa-solid fa-user-gear"></i>
+                    </div>
+                    <h2 id="profile-username-display" class="profile-title">Username</h2>
+                    <span id="profile-email-display" class="profile-email-sub">user@gmail.com</span>
+                    <div class="profile-badge-verified"><i class="fa-solid fa-shield-halved"></i> Terverifikasi Resmi</div>
+                </div>
+
+                <div id="profile-alert" class="auth-alert hidden"></div>
+
+                <!-- Form Ganti Password -->
+                <form id="change-password-form" class="auth-form" style="margin-top: 15px;">
+                    <h4 style="color: #fff; margin-bottom: 12px; font-size: 14px;"><i class="fa-solid fa-key text-accent"></i> Ganti Password Akun</h4>
+                    
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock-open"></i> Password Saat Ini</label>
+                        <input type="password" id="change-old-password" placeholder="Masukkan password lama..." required>
+                    </div>
+
+                    <div class="form-group">
+                        <label><i class="fa-solid fa-lock"></i> Password Baru</label>
+                        <input type="password" id="change-new-password" placeholder="Minimal 4 karakter..." required minlength="4">
+                    </div>
+
+                    <button type="submit" class="btn-primary auth-submit-btn"><i class="fa-solid fa-floppy-disk"></i> Simpan Password Baru</button>
+                </form>
+
+                <div style="border-top: 1px solid var(--border-glass); margin-top: 20px; padding-top: 15px;">
+                    <button type="button" id="profile-logout-btn" class="btn-danger-glow" style="width: 100%;"><i class="fa-solid fa-right-from-bracket"></i> Keluar Akun (Logout)</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile Bottom Navigation Bar -->
+        <nav class="bottom-nav">
+            <a href="#" class="nav-item active" data-tab="home">
+                <i class="fa-solid fa-house"></i>
+                <span>Beranda</span>
+            </a>
+            <a href="#" class="nav-item" data-tab="explore">
+                <i class="fa-solid fa-compass"></i>
+                <span>Jelajah</span>
+            </a>
+            <a href="#" class="nav-item" data-tab="watchlist">
+                <i class="fa-solid fa-bookmark"></i>
+                <span>Watchlist</span>
+            </a>
+            <a href="#" class="nav-item" data-tab="history">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>Riwayat</span>
+            </a>
+            <a href="#" class="nav-item" data-tab="about">
+                <i class="fa-solid fa-circle-info"></i>
+                <span>Tentang</span>
+            </a>
+        </nav>
+    </div>
+
+    <!-- App JavaScript Modules -->
+    <script src="js/player.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
